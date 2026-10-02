@@ -505,12 +505,18 @@ branch to this repository to get one.
 ### Android builds that reach testers
 
 Two workflows deliver through Firebase App Distribution, which reaches a named
-tester group rather than anyone holding a link. That matters beyond
-convenience: these builds carry configuration that should not be public, so
-attaching them to a release is not an option.
+tester group. The nightly also attaches its APKs to a public GitHub prerelease,
+so anything built into a nightly is public.
 
 `android-nightly.yml` runs daily at 22:00 UTC, two hours after the iOS
-nightly starts, so the two never overlap. Each announcement lists the pull
+nightly starts, so the two never overlap. It publishes both flavours on a
+GitHub prerelease, `app-gp-nightly.apk` and `app-vanilla-nightly.apk` (without
+Google Play services), and sends the gp one to Firebase App Distribution.
+Every run on `main` also refreshes the `nightly-android` release, so the latest
+build always downloads from the same two links:
+`https://github.com/paritytech/trinity-user-agents/releases/download/nightly-android/app-gp-nightly.apk`
+and the same path ending in `app-vanilla-nightly.apk`.
+Each announcement links both APKs and lists the pull
 requests the build carries, with breaking changes, the titles carrying `!`,
 listed first and marked `Breaking:`. Both nightlies skip a scheduled night
 when `main` has not moved past what their last successful run built. `android-debug-distribution.yml` runs
