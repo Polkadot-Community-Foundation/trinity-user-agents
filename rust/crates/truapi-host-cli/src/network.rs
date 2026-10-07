@@ -18,6 +18,10 @@ pub enum Network {
     /// reads the same string a product sees everywhere else.
     #[value(name = "previewnet")]
     Previewnet,
+    /// The Polkadot Community Foundation devnet: the public Paseo Asset Hub,
+    /// People and Bulletin chains with the PCF identity backend.
+    #[value(name = "devnet")]
+    Devnet,
 }
 
 /// Env var overriding the identity backend base URL for every command. The URL
@@ -57,6 +61,18 @@ impl Network {
                 bulletin_genesis: PREVIEWNET_BULLETIN.genesis,
                 asset_hub_genesis: PREVIEWNET_ASSET_HUB.genesis,
                 live_chain_endpoints: PREVIEWNET_CHAIN_ENDPOINTS,
+            },
+            Self::Devnet => NetworkConfig {
+                id: "devnet",
+                network_suffix: "dot",
+                identity_backend_base: "https://polkadot-app.api.polkadotcommunity.foundation/api/v1",
+                people_ws: DEVNET_PEOPLE.ws,
+                bulletin_ws: DEVNET_BULLETIN.ws,
+                asset_hub_ws: DEVNET_ASSET_HUB.ws,
+                people_genesis: DEVNET_PEOPLE.genesis,
+                bulletin_genesis: DEVNET_BULLETIN.genesis,
+                asset_hub_genesis: DEVNET_ASSET_HUB.genesis,
+                live_chain_endpoints: DEVNET_CHAIN_ENDPOINTS,
             },
         }
     }
@@ -129,11 +145,38 @@ const PREVIEWNET_BULLETIN: ChainEndpoint = ChainEndpoint {
     required_for_host: true,
 };
 
+const DEVNET_ASSET_HUB: ChainEndpoint = ChainEndpoint {
+    genesis: hex_literal_genesis(
+        "d6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2",
+    ),
+    ws: "wss://asset-hub-paseo-rpc.n.dwellir.com",
+    required_for_host: true,
+};
+
+const DEVNET_PEOPLE: ChainEndpoint = ChainEndpoint {
+    genesis: hex_literal_genesis(
+        "e6c30d6e148f250b887105237bcaa5cb9f16dd203bf7b5b9d4f1da7387cb86ec",
+    ),
+    ws: "wss://people-paseo.rotko.net",
+    required_for_host: true,
+};
+
+const DEVNET_BULLETIN: ChainEndpoint = ChainEndpoint {
+    genesis: hex_literal_genesis(
+        "e101f0fa4627d29a257645e02be86d80378fea1a2bf8fa6a918d150ebc760a59",
+    ),
+    ws: "wss://bulletin-paseo.tservices.es:8443",
+    required_for_host: true,
+};
+
 const PASEO_NEXT_V2_CHAIN_ENDPOINTS: &[ChainEndpoint] =
     &[PASEO_ASSET_HUB, PASEO_PEOPLE, PASEO_BULLETIN];
 
 const PREVIEWNET_CHAIN_ENDPOINTS: &[ChainEndpoint] =
     &[PREVIEWNET_ASSET_HUB, PREVIEWNET_PEOPLE, PREVIEWNET_BULLETIN];
+
+const DEVNET_CHAIN_ENDPOINTS: &[ChainEndpoint] =
+    &[DEVNET_ASSET_HUB, DEVNET_PEOPLE, DEVNET_BULLETIN];
 
 /// Resolved RPC/backend/genesis values for one network preset.
 #[derive(Debug, Clone, Copy)]
@@ -357,8 +400,9 @@ mod tests {
     /// rework the account store rather than relaxing the assertion.
     /// Hosts a preset may route to. Every entry is a disposable test deployment:
     /// `paseo`/`testnet` name the Paseo testnets,
-    /// `previewnet.substrate.dev` is the previewnet parachain set, and the two
-    /// exact dotSpark hosts are those test presets' identity backends.
+    /// `previewnet.substrate.dev` is the previewnet parachain set, the two
+    /// exact dotSpark hosts are those test presets' identity backends, and the
+    /// PCF host is the devnet preset's identity backend.
     ///
     /// An allowlist rather than a substring rule, because the rule this test
     /// exists for is "no production network", and a production host can contain
@@ -369,6 +413,7 @@ mod tests {
         "previewnet.substrate.dev",
         "identity.dotspark.app",
         "identity-previewnet.dotspark.app",
+        "polkadot-app.api.polkadotcommunity.foundation",
     ];
 
     #[test]
