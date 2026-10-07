@@ -11,7 +11,7 @@
 
 use std::time::Duration;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use futures_util::{StreamExt as _, TryStreamExt as _, stream};
@@ -37,6 +37,14 @@ use crate::network::NetworkConfig;
 /// Set it to reuse a token minted elsewhere. Unset, the CLI runs the sr25519
 /// auth handshake itself ([`backend_token`]).
 pub const IDENTITY_BACKEND_TOKEN_ENV: &str = "HOST_CLI_IDENTITY_BACKEND_TOKEN";
+
+/// Env var bounding, in seconds, how long onboarding waits for the identity
+/// backend to land the dotNS username. A backend that writes registrations
+/// through a slow queue needs more than the default.
+pub const DOTNS_USERNAME_WAIT_ENV: &str = "HOST_CLI_DOTNS_USERNAME_WAIT_SECS";
+
+const DOTNS_USERNAME_POLL_INTERVAL: Duration = Duration::from_secs(4);
+const DEFAULT_DOTNS_USERNAME_WAIT_SECS: u64 = 120;
 
 /// Access tokens for the username routes, keyed by backend and authenticated
 /// account. The backend requires a username registration's candidate account
@@ -639,8 +647,8 @@ async fn wait_for_dotns_username(
     // First-time lite registration is backend-async and can lag the HTTP
     // response. The record is permanent once written. Later runs therefore
     // resolve on the first poll.
-    const MAX_ATTEMPTS: usize = 30;
-    for attempt in 1..=MAX_ATTEMPTS {
+    let max_attempts = dotns_username_poll_attempts(std::env::var(DOTNS_USERNAME_WAIT_ENV).ok())?;
+    for attempt in 1..=max_attempts {
         match reader.dotns_identity(candidate).await {
             Ok(identity) if identity.lite_username.is_some() => {
                 crate::terminal_ui::update_activity(
@@ -656,19 +664,36 @@ async fn wait_for_dotns_username(
                     "signer",
                     "Setting up signer",
                     Some(format!(
-                        "Waiting for dotNS username · attempt {attempt}/{MAX_ATTEMPTS}"
+                        "Waiting for dotNS username · attempt {attempt}/{max_attempts}"
                     )),
                     crate::terminal_ui::ActivityState::Running,
                 );
-                debug!("dotNS username poll {attempt}/{MAX_ATTEMPTS}: empty");
+                debug!("dotNS username poll {attempt}/{max_attempts}: empty");
             }
             Err(err) => warn!(%err, "dotNS username poll attempt {attempt} failed"),
         }
-        if attempt < MAX_ATTEMPTS {
-            tokio::time::sleep(Duration::from_secs(4)).await;
+        if attempt < max_attempts {
+            tokio::time::sleep(DOTNS_USERNAME_POLL_INTERVAL).await;
         }
     }
     bail!("dotNS username did not appear on Asset Hub after attestation")
+}
+
+/// Poll attempts covering the configured wait, or the default when unset.
+fn dotns_username_poll_attempts(configured: Option<String>) -> Result<usize> {
+    let secs = match configured {
+        None => DEFAULT_DOTNS_USERNAME_WAIT_SECS,
+        Some(raw) => {
+            let secs: u64 = raw.trim().parse().with_context(|| {
+                format!("{DOTNS_USERNAME_WAIT_ENV} must be a whole number of seconds, got {raw:?}")
+            })?;
+            ensure!(secs > 0, "{DOTNS_USERNAME_WAIT_ENV} must be positive");
+            secs
+        }
+    };
+    Ok(usize::try_from(
+        secs.div_ceil(DOTNS_USERNAME_POLL_INTERVAL.as_secs()),
+    )?)
 }
 
 #[cfg(test)]
@@ -676,6 +701,21 @@ mod tests {
     use super::*;
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
     use tokio::net::TcpListener;
+
+    #[test]
+    fn dotns_username_wait_defaults_and_reads_the_override() {
+        assert_eq!(dotns_username_poll_attempts(None).unwrap(), 30);
+        assert_eq!(
+            dotns_username_poll_attempts(Some("480".into())).unwrap(),
+            120
+        );
+        assert_eq!(
+            dotns_username_poll_attempts(Some(" 10 ".into())).unwrap(),
+            3
+        );
+        assert!(dotns_username_poll_attempts(Some("0".into())).is_err());
+        assert!(dotns_username_poll_attempts(Some("2m".into())).is_err());
+    }
 
     /// The availability response is a flat `{base: status}` map.
     #[test]

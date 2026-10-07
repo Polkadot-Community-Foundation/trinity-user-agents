@@ -1211,7 +1211,9 @@ A new auto account:
 10. marks and saves the account as attested.
 
 Identity and ring polling each allow 30 attempts with four seconds between
-attempts. Identity-backend HTTP clients use a 30-second timeout.
+attempts. `HOST_CLI_DOTNS_USERNAME_WAIT_SECS` replaces the identity wait with
+that many seconds, for a backend that lands registrations through a slow
+queue. Identity-backend HTTP clients use a 30-second timeout.
 
 The backend's username routes are bearer-gated. Unless
 `HOST_CLI_IDENTITY_BACKEND_TOKEN` supplies one, the CLI mints an access token
