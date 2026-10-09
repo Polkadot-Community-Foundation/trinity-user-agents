@@ -1211,7 +1211,9 @@ A new auto account:
 10. marks and saves the account as attested.
 
 Identity and ring polling each allow 30 attempts with four seconds between
-attempts. Identity-backend HTTP clients use a 30-second timeout.
+attempts. `HOST_CLI_DOTNS_USERNAME_WAIT_SECS` replaces the identity wait with
+that many seconds, for a backend that lands registrations through a slow
+queue. Identity-backend HTTP clients use a 30-second timeout.
 
 The backend's username routes are bearer-gated. Unless
 `HOST_CLI_IDENTITY_BACKEND_TOKEN` supplies one, the CLI mints an access token
@@ -1579,7 +1581,7 @@ core, product, and current selection files.
 
 ### 14.1 Network presets
 
-`--network` selects one of two presets. `paseo-next-v2` is the default. Every
+`--network` selects one of three presets. `paseo-next-v2` is the default. Every
 preset is a test network; the account store keeps BIP-39 entropy for
 disposable test identities only.
 
@@ -1615,6 +1617,21 @@ on-chain testing.
 | Bulletin genesis | `0xa081192b90c1f6a3f8e9ce7b2a8246f41af805c66456c84e05fd97c2b3502425` |
 | Asset Hub RPC | `wss://previewnet.substrate.dev/asset-hub` |
 | Asset Hub genesis | `0xbac97e23fc8f4bccae72a98f8aeb2bcab20bf755862304e4b46ad6473456e896` |
+
+#### `devnet`
+
+The Polkadot Community Foundation devnet: the public Paseo system chains with
+the PCF identity backend. Its dotNS TLD is `dot`.
+
+| Purpose | Value |
+| --- | --- |
+| Identity backend | `https://polkadot-app.api.polkadotcommunity.foundation/api/v1` |
+| People RPC | `wss://people-paseo.rotko.net` |
+| People genesis | `0xe6c30d6e148f250b887105237bcaa5cb9f16dd203bf7b5b9d4f1da7387cb86ec` |
+| Bulletin RPC | `wss://bulletin-paseo.tservices.es:8443` |
+| Bulletin genesis | `0xe101f0fa4627d29a257645e02be86d80378fea1a2bf8fa6a918d150ebc760a59` |
+| Asset Hub RPC | `wss://asset-hub-paseo-rpc.n.dwellir.com` |
+| Asset Hub genesis | `0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2` |
 
 Sessions are per network (`SessionCatalog::new` keys on the preset id), so a
 signer provisioned on one preset is not visible from the other. Two presets means
