@@ -34,7 +34,9 @@ pub use callbacks::{
     NativePocketCallbacks, NativePocketRemoval, NativeScannerCallbacks,
 };
 pub use config::{HostRuntimeConfig, NativeRuntimeConfigError, ProductExecutionConfig};
-pub use errors::{HostRejection, NativeChatFieldError, NativeCoreDatabaseError, NativeRendererError};
+pub use errors::{
+    HostRejection, NativeChatFieldError, NativeCoreDatabaseError, NativeRendererError,
+};
 pub use renderer::{NativeRendererObserver, NativeRendererSubscription};
 pub use runtime::{
     NativeAnnouncedPairing, NativePairingError, NativeProductExecution, NativeTrUApiHostRuntime,
