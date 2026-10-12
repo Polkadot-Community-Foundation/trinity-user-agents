@@ -20,15 +20,15 @@ mod time;
 mod testing;
 
 pub use engine::{
-    DurableDeps, DurableRequest, DurableTxEngine, DurableWorkObserver, EmptyRequest, RecoveryError,
-    RegistrationError,
+	DurableDeps, DurableRequest, DurableTxEngine, DurableWorkObserver, EmptyRequest, RecoveryError,
+	RegistrationError,
 };
 pub use model::{
-    DomainId, DurableTxEntry, DurableTxId, DurableTxState, DurableTxStatus, FailureKind, GroupId,
-    HeadKind, Verdict,
+	DomainId, DurableTxEntry, DurableTxId, DurableTxState, DurableTxStatus, FailureKind, GroupId,
+	HeadKind, Verdict,
 };
 pub use oracle::{
-    CompletionOracle, DurableRegistry, LedgerView, Monotone, MonotoneEffect, PassScope,
-    Unobservable,
+	CompletionOracle, DurableRegistry, LedgerView, Monotone, MonotoneEffect, PassScope,
+	Unobservable,
 };
 pub use time::{RealTimer, Timer};
