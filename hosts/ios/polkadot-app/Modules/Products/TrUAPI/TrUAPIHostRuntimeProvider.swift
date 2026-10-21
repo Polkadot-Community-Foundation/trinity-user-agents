@@ -24,6 +24,10 @@ protocol TrUAPIHostRuntimeProviding: AnyObject, Sendable {
     /// Anchor the host's core confirmations (signing, permission prompts) to
     /// the given view. Until it is attached, host-level prompts deny.
     @MainActor func setPresentationView(_ view: ControllerBackedProtocol)
+
+    /// Attach what runs product workers when the core's reference ledger asks
+    /// for them. Called once at startup, before the runtime is first built.
+    func attach(workerManager: any TrUAPIWorkerManaging)
 }
 
 /// Lazily builds one ``TrUAPIHostRuntime`` from host identity + people/bulletin
@@ -42,6 +46,10 @@ final class TrUAPIHostRuntimeProvider: TrUAPIHostRuntimeProviding, @unchecked Se
     private let lock = NSLock()
     private var cachedRuntime: TrUAPIHostRuntime?
     private var contactsChangeNotifier: ContactsChangeNotifier?
+
+    /// Set once at startup, before any product opens. The runtime is built on
+    /// first use, which is long after, so the manager is in place by then.
+    private var workerManager: (any TrUAPIWorkerManaging)?
 
     init(
         chainRegistry: ChainRegistryProtocol,
@@ -66,6 +74,13 @@ final class TrUAPIHostRuntimeProvider: TrUAPIHostRuntimeProviding, @unchecked Se
         confirmationRouterFacade.setPresentationView(view)
     }
 
+    func attach(workerManager: any TrUAPIWorkerManaging) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        self.workerManager = workerManager
+    }
+
     func sharedRuntime() throws -> TrUAPIHostRuntime {
         lock.lock()
         defer { lock.unlock() }
@@ -80,7 +95,8 @@ final class TrUAPIHostRuntimeProvider: TrUAPIHostRuntimeProviding, @unchecked Se
             chainRegistry: chainRegistry,
             secret: secret,
             liteUsername: settingsManager.string(for: .username),
-            networkSuffix: networkSuffix
+            networkSuffix: networkSuffix,
+            databaseDirectory: Self.coreDatabaseDirectory()
         )
 
         let chainConnections = TrUAPIChainConnectionPool(
@@ -97,6 +113,7 @@ final class TrUAPIHostRuntimeProvider: TrUAPIHostRuntimeProviding, @unchecked Se
             coreStorage: coreStorage,
             chainConnections: chainConnections,
             confirmationPresenter: TrUAPIConfirmationPresenter(routerFacade: confirmationRouterFacade),
+            workerManager: workerManager,
             logger: logger
         )
 
@@ -138,7 +155,8 @@ extension TrUAPIHostRuntimeProvider {
         chainRegistry: ChainRegistryProtocol,
         secret: Data,
         liteUsername: String?,
-        networkSuffix: String
+        networkSuffix: String,
+        databaseDirectory: String
     ) throws -> HostRuntimeConfig {
         let peopleChain = try chainRegistry.getChainOrError(for: AppConfig.Chains.usernameChain)
         let bulletinChain = try chainRegistry.getChainOrError(for: AppConfig.Chains.bulletInChain)
@@ -169,8 +187,23 @@ extension TrUAPIHostRuntimeProvider {
             bulletinChainGenesisHash: Data(hexString: bulletinGenesisHex),
             assetHubChainGenesisHash: Data(hexString: assetHubGenesisHex),
             networkSuffix: networkSuffix,
+            databaseDirectory: databaseDirectory,
             localSessionSecret: secret,
             localSessionLiteUsername: liteUsername
         )
+    }
+
+    /// The core database directory under Application Support, created if
+    /// needed and excluded from backup: a durable-transaction ledger restored
+    /// onto another device would act on transactions that already settled.
+    static func coreDatabaseDirectory(fileManager: FileManager = .default) throws -> String {
+        var directory = try fileManager
+            .url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            .appendingPathComponent("truapi", isDirectory: true)
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try directory.setResourceValues(values)
+        return directory.path
     }
 }
