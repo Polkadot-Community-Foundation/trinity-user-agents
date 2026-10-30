@@ -338,9 +338,10 @@ pub async fn attest(config: &AttestConfig) -> Result<String> {
 
 	submit_registration(&client, config, signed_at, &registration).await?;
 
-	let identity = wait_for_dotns_username(&mut reader, &registration.candidate_public_key).await?;
+	let lite_username =
+		wait_for_lite_username(&mut reader, &registration.candidate_public_key).await?;
 	debug!("lite username registered and confirmed on-chain");
-	identity.lite_username.context("registered dotNS identity has no lite username")
+	Ok(lite_username)
 }
 
 /// Resolves the on-chain lite username for an already-attested signer: the
@@ -353,7 +354,7 @@ pub async fn registered_lite_username(network: NetworkConfig, entropy: &[u8]) ->
 	reader
 		.dotns_identity(&identity.public.to_bytes())
 		.await?
-		.lite_username
+		.and_then(|identity| identity.into_lite_username())
 		.context("attested signer has no dotNS lite username")
 }
 
@@ -367,7 +368,7 @@ pub async fn lookup_registered_username(
 		.map_err(|err| anyhow::anyhow!("uid identity derivation failed: {err}"))?;
 	let mut reader = AssetHubReader::connect(network.asset_hub_ws).await?;
 	let identity = reader.dotns_identity(&identity.public.to_bytes()).await?;
-	Ok(identity.full_username.or(identity.lite_username))
+	Ok(identity.map(|identity| identity.primary_username().to_owned()))
 }
 
 #[derive(Deserialize)]
@@ -519,12 +520,11 @@ pub async fn check_identity(network: NetworkConfig, entropy: &[u8]) -> Result<()
 	{
 		let address = product_public_key_to_address(public);
 		match reader.dotns_identity(&public).await {
-			Ok(identity) => match identity.full_username.or(identity.lite_username) {
-				Some(username) => {
-					println!("IDENTITY_FOUND path={label} account={address} username={username}")
-				},
-				None => println!("IDENTITY_NONE path={label} account={address}"),
+			Ok(Some(identity)) => {
+				let username = identity.primary_username();
+				println!("IDENTITY_FOUND path={label} account={address} username={username}")
 			},
+			Ok(None) => println!("IDENTITY_NONE path={label} account={address}"),
 			Err(err) => println!("IDENTITY_ERROR path={label} account={address} error={err:#}"),
 		}
 	}
@@ -608,24 +608,28 @@ fn hex0x(bytes: &[u8]) -> String {
 	format!("0x{}", hex::encode(bytes))
 }
 
-async fn wait_for_dotns_username(
+async fn wait_for_lite_username(
 	reader: &mut AssetHubReader,
 	candidate: &[u8; 32],
-) -> Result<truapi::host_logic::dotns_gateway::DotnsIdentity> {
+) -> Result<String> {
 	// First-time lite registration is backend-async and can lag the HTTP
 	// response. The record is permanent once written. Later runs therefore
 	// resolve on the first poll.
 	let max_attempts = dotns_username_poll_attempts(std::env::var(DOTNS_USERNAME_WAIT_ENV).ok())?;
 	for attempt in 1..=max_attempts {
-		match reader.dotns_identity(candidate).await {
-			Ok(identity) if identity.lite_username.is_some() => {
+		let lite_username = reader
+			.dotns_identity(candidate)
+			.await
+			.map(|identity| identity.and_then(|identity| identity.into_lite_username()));
+		match lite_username {
+			Ok(Some(lite_username)) => {
 				crate::terminal_ui::update_activity(
 					"signer",
 					"Setting up signer",
 					Some("dotNS identity ready".to_string()),
 					crate::terminal_ui::ActivityState::Running,
 				);
-				return Ok(identity);
+				return Ok(lite_username);
 			},
 			Ok(_) => {
 				crate::terminal_ui::update_activity(
