@@ -5720,7 +5720,7 @@ dependencies = [
 
 [[package]]
 name = "truapi-host-cli"
-version = "0.26.0"
+version = "0.26.0-pcf.1"
 dependencies = [
  "anyhow",
  "arboard",
