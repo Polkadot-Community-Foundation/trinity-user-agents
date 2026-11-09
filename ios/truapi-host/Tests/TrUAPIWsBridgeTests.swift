@@ -98,7 +98,13 @@ struct TrUAPIWsBridgeTests {
             Issue.record("expected binary frame, got \(message)")
             return
         }
-        #expect(response.suffix(Self.hostInfoResponseTail.count) == Self.hostInfoResponseTail)
+        // HostInfo ends with the TrUAPI release the core embeds, a SCALE
+        // string whose value the test does not pin.
+        let fields = try #require(response.range(of: Self.hostInfoResponseFields))
+        let truapiVersion = response[fields.upperBound...]
+        let lengthByte = try #require(truapiVersion.first)
+        let length = Int(lengthByte >> 2)
+        #expect(length > 0 && truapiVersion.count == 1 + length)
     }
 
     /// iOS reclaims a suspended app's listening socket while products keep
@@ -181,14 +187,14 @@ private extension TrUAPIWsBridgeTests {
         return frame
     }
 
-    // Response tail: message_type=Response(0x01), then the payload,
+    // Response: message_type=Response(0x01), then the payload,
     // Result::Ok(0x00), V1(0x00), then HostInfo as platform(Ios = 0x02),
-    // name, version (empty, hostVersion is unset).
-    static var hostInfoResponseTail: Data {
-        var tail = Data([0x01, 0x00, 0x00, 0x02, 0x44]) // 0x44 is compact length 17
-        tail.append("truapi-host-tests".data(using: .utf8)!)
-        tail.append(contentsOf: [0x00])
-        return tail
+    // name, version (empty, hostVersion is unset), truapiVersion.
+    static var hostInfoResponseFields: Data {
+        var fields = Data([0x01, 0x00, 0x00, 0x02, 0x44]) // 0x44 is compact length 17
+        fields.append("truapi-host-tests".data(using: .utf8)!)
+        fields.append(contentsOf: [0x00])
+        return fields
     }
 
     static func featureSupportedRequestFrame() -> Data {
