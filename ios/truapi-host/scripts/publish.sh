@@ -26,6 +26,9 @@ TRUAPI_ROOT="$(cd "$PACKAGE_ROOT/../.." && pwd)"
 XCFRAMEWORK="$PACKAGE_ROOT/Binaries/truapi_server.xcframework"
 BRANCH="$(git -C "$TRUAPI_ROOT" rev-parse --abbrev-ref HEAD)"
 RELEASE_TARGET="${IOS_RELEASE_TARGET:-$BRANCH}"
+# The repo the release and its asset URL belong to: the one running the
+# workflow in Actions, the upstream repo otherwise.
+REPO="${GITHUB_REPOSITORY:-paritytech/trinity-user-agents}"
 
 if [ "$BRANCH" = "HEAD" ] && [ -z "${IOS_RELEASE_TARGET:-}" ]; then
     echo "error: detached HEAD — check out the branch or set IOS_RELEASE_TARGET" >&2
@@ -65,11 +68,11 @@ trap 'rm -rf "$STAGING"' EXIT
 ditto -c -k --keepParent "$XCFRAMEWORK" "$ZIP"
 CHECKSUM="$(cd "$TRUAPI_ROOT" && swift package compute-checksum "$ZIP")"
 
-if gh release view "$TAG" --repo paritytech/trinity-user-agents >/dev/null 2>&1; then
-    gh release upload "$TAG" "$ZIP" --repo paritytech/trinity-user-agents --clobber
+if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+    gh release upload "$TAG" "$ZIP" --repo "$REPO" --clobber
 else
     gh release create "$TAG" "$ZIP" \
-        --repo paritytech/trinity-user-agents \
+        --repo "$REPO" \
         --target "$RELEASE_TARGET" \
         --title "$TITLE" \
         --latest=false \
@@ -78,7 +81,7 @@ fi
 
 # The tag contains "@" and "/" — percent-encode it for the asset URL.
 ENCODED_TAG="$(printf %s "$TAG" | sed 's/@/%40/g; s,/,%2F,g')"
-URL="https://github.com/paritytech/trinity-user-agents/releases/download/${ENCODED_TAG}/truapi_server.xcframework.zip"
+URL="https://github.com/${REPO}/releases/download/${ENCODED_TAG}/truapi_server.xcframework.zip"
 MANIFEST="$TRUAPI_ROOT/Package.swift"
 sed -i '' -E "s|^let publishedBinaryURL = .*|let publishedBinaryURL = \"$URL\"|" "$MANIFEST"
 sed -i '' -E "s|^let publishedBinaryChecksum = .*|let publishedBinaryChecksum = \"$CHECKSUM\"|" "$MANIFEST"
